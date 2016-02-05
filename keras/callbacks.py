@@ -246,13 +246,14 @@ class ModelCheckpoint(Callback):
 
     '''
     def __init__(self, filepath, monitor='val_loss', verbose=0,
-                 save_best_only=False, mode='auto'):
+                 save_best_only=False, mode='auto', period=100):
 
         super(Callback, self).__init__()
         self.monitor = monitor
         self.verbose = verbose
         self.filepath = filepath
         self.save_best_only = save_best_only
+        self.period = period
 
         if mode not in ['auto', 'min', 'max']:
             warnings.warn('ModelCheckpoint mode %s is unknown, '
@@ -275,6 +276,9 @@ class ModelCheckpoint(Callback):
                 self.best = np.Inf
 
     def on_epoch_end(self, epoch, logs={}):
+        if np.mod(epoch, self.period) != 0:
+            return
+        
         filepath = self.filepath.format(epoch=epoch, **logs)
         if self.save_best_only:
             current = logs.get(self.monitor)
