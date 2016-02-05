@@ -82,6 +82,29 @@ class UnitNorm(Constraint):
         return {"name": self.__class__.__name__,
                 "axis": self.axis}
 
+class ConstWeight(Constraint):
+    '''Constant weight'''
+    def __init__(self, W=None):
+        self.W = K.variable(W)
+
+    def __call__(self, p):
+        return self.W
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "W": self.W}
+
+class MaskWeight(Constraint):
+    '''Non-masked values = 0'''
+    def __init__(self, W_mask=None):
+        self.W_mask = K.variable(W_mask)
+
+    def __call__(self, p):
+        return p * self.W_mask
+
+    def get_config(self):
+        return {"name": self.__class__.__name__,
+                "W": self.W}
 
 identity = Constraint
 maxnorm = MaxNorm
