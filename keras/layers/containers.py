@@ -5,6 +5,7 @@ from __future__ import print_function
 from collections import OrderedDict
 from .. import backend as K
 from ..layers.core import Layer, Merge, Siamese, SiameseHead
+from ..layers.MyLayers import PairMerge
 from six.moves import range
 
 
@@ -370,6 +371,11 @@ class Graph(Layer):
             merge = Merge(to_merge, mode=merge_mode,
                           concat_axis=concat_axis, dot_axes=dot_axes)
             layer.set_previous(merge)
+            
+            print(to_merge)
+            print(inputs)
+            print(merge)
+            print(layer, layer)
 
         self.namespace.add(name)
         layer.layer_cache = self.layer_cache
@@ -377,6 +383,56 @@ class Graph(Layer):
         self.node_config.append({'name': name,
                                  'input': input,
                                  'inputs': inputs,
+                                 'merge_mode': merge_mode,
+                                 'concat_axis': concat_axis,
+                                 'dot_axes': dot_axes,
+                                 'create_output': create_output})
+
+        if create_output:
+            self.add_output(name, input=name)
+            
+    def add_pair_merge_node(self, name, input1, input2,
+                 merge_mode='concat', concat_axis=-1, dot_axes=-1,
+                 create_output=False):
+        '''Add a node in the graph. It can be connected to multiple
+        inputs, which will first be merged into one tensor
+        according to the mode specified.
+
+        # Arguments
+            layer: the layer at the node.
+            name: name for the node.
+            input: when connecting the layer to a single input,
+                this is the name of the incoming node.
+            inputs: when connecting the layer to multiple inputs,
+                this is a list of names of incoming nodes.
+            merge_mode: one of {concat, sum, dot, ave, mul}
+            concat_axis: when `merge_mode=='concat'`, this is the
+                input concatenation axis.
+            dot_axes: when `merge_mode='dot'`, this is the contraction axes
+                specification; see the `Merge layer for details.
+            create_output: boolean. Set this to `True` if you want the output
+                of your node to be an output of the graph.
+        '''
+        if name in self.namespace:
+            raise Exception('Duplicate node identifier: ' + name)
+
+        to_merge = []
+        inputs = [input1, input2]
+        for n in inputs:
+            if n in self.nodes:
+                to_merge.append(self.nodes[n])
+            elif n in self.inputs:
+                to_merge.append(self.inputs[n])
+            else:
+                raise Exception('Unknown identifier: ' + n)
+            
+        pair_merge = PairMerge(to_merge[0], to_merge[1], mode=merge_mode) 
+
+        self.namespace.add(name)
+        self.nodes[name] = pair_merge
+        self.node_config.append({'name': name,
+                                 'input1': input1,
+                                 'input2': input2,
                                  'merge_mode': merge_mode,
                                  'concat_axis': concat_axis,
                                  'dot_axes': dot_axes,
