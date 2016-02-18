@@ -122,7 +122,7 @@ class Recurrent(MaskedLayer):
         initial_states = [initial_state for _ in range(len(self.states))]
         return initial_states
 
-    def get_output(self, train=False):
+    def get_output(self, train=False, get_states=False):
         # input shape: (nb_samples, time (padded with zeros), input_dim)
         X = self.get_input(train)
         mask = self.get_input_mask(train)
@@ -153,10 +153,42 @@ class Recurrent(MaskedLayer):
             for i in range(len(states)):
                 self.updates.append((self.states[i], states[i]))
 
+        if get_states == True:
+            return states
+        
         if self.return_sequences:
             return outputs
         else:
-            return last_output
+            return last_output       
+                 
+    def get_output_full(self, train=False):
+        # input shape: (nb_samples, time (padded with zeros), input_dim)
+        X = self.get_input(train)
+        mask = self.get_input_mask(train)
+
+        assert K.ndim(X) == 3
+        if K._BACKEND == 'tensorflow':
+            if not self.input_shape[1]:
+                raise Exception('When using TensorFlow, you should define ' +
+                                'explicitly the number of timesteps of ' +
+                                'your sequences.\n' +
+                                'If your first layer is an Embedding, ' +
+                                'make sure to pass it an "input_length" ' +
+                                'argument. Otherwise, make sure ' +
+                                'the first layer has ' +
+                                'an "input_shape" or "batch_input_shape" ' +
+                                'argument, including the time axis.')
+        
+        self.set_states_full()
+        initial_states = self.get_initial_states(X)
+        #print initial_states
+        
+        last_output, outputs, states = K.rnn(self.step_full, X,
+                                             initial_states,
+                                             go_backwards=self.go_backwards,
+                                             mask=mask,
+                                             get_all_states = True)
+        return states
 
     def get_config(self):
         config = {"name": self.__class__.__name__,
@@ -430,7 +462,10 @@ class LSTM(Recurrent):
         else:
             self.states = [K.zeros((input_shape[0], self.output_dim)),
                            K.zeros((input_shape[0], self.output_dim))]
-
+    
+    def set_states_full(self):
+        self.states = [None, None, None, None, None]    
+        
     def step(self, x, states):
         assert len(states) == 2
         h_tm1 = states[0]
@@ -447,7 +482,25 @@ class LSTM(Recurrent):
         o = self.inner_activation(x_o + K.dot(h_tm1, self.U_o))
         h = o * self.activation(c)
         return h, [h, c]
+    
+    def step_full(self, x, states):
+        #print 'step_full(): ', len(states)
+        assert len(states) == 5
+        h_tm1 = states[0]
+        c_tm1 = states[1]
 
+        x_i = K.dot(x, self.W_i) + self.b_i
+        x_f = K.dot(x, self.W_f) + self.b_f
+        x_c = K.dot(x, self.W_c) + self.b_c
+        x_o = K.dot(x, self.W_o) + self.b_o
+
+        i = self.inner_activation(x_i + K.dot(h_tm1, self.U_i))
+        f = self.inner_activation(x_f + K.dot(h_tm1, self.U_f))
+        c = f * c_tm1 + i * self.activation(x_c + K.dot(h_tm1, self.U_c))
+        o = self.inner_activation(x_o + K.dot(h_tm1, self.U_o))
+        h = o * self.activation(c)
+        return h, [h, c, i, f, o]
+    
     def get_config(self):
         config = {"output_dim": self.output_dim,
                   "init": self.init.__name__,

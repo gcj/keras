@@ -395,7 +395,8 @@ def gradients(loss, variables):
 # CONTROL FLOW
 
 def rnn(step_function, inputs, initial_states,
-        go_backwards=False, mask=None):
+        go_backwards=False, mask=None,
+        get_all_states=False):
     '''Iterates over the time dimension of a tensor.
 
     Parameters
@@ -475,7 +476,12 @@ def rnn(step_function, inputs, initial_states,
 
     axes = [1, 0] + list(range(2, outputs.ndim))
     outputs = outputs.dimshuffle(axes)
-    states = [T.squeeze(state[-1]) for state in states]
+    
+    if get_all_states == False: # default
+        states = [T.squeeze(state[-1]) for state in states]
+    else:
+        states = [s.dimshuffle(axes) for s in states]
+    
     return last_output, outputs, states
 
 
